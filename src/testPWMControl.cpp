@@ -10,7 +10,7 @@
  *      rosrun plotjuggler plotjuggler 
  * 
  * 3. Launch testPWMControl:
- *      rosrun dynamixel_ros testPWMControl  YOUR_PORT PROTOCOL_TYPE BAUDRATE DMXL_ID
+ *      rosrun dynamixel_ros2 testPWMControl  YOUR_PORT PROTOCOL_TYPE BAUDRATE DMXL_ID
  * 
  * 4. Publish any PWM value between 0 and 100% in the created topic:
  *      rostopic pub -1 /user_pwm_input std_msgs/Int32 "data: PERCENTAGE"
@@ -18,7 +18,7 @@
 
 #include "ros/ros.h"
 #include "std_msgs/Int32.h" 
-#include <dynamixel_ros.h>
+#include <dynamixel_ros2.h>
 
 dynamixelMotor myDynamixel;
 

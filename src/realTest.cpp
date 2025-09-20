@@ -1,7 +1,7 @@
 #include <ros/ros.h>
 #include <std_msgs/Float32.h>
 #include <std_msgs/Int32.h>
-#include <dynamixel_ros.h>
+#include <dynamixel_ros2.h>
 #include <iostream>
 
 dynamixelMotor motorJ0,motorJ1,motorJ2,motorJ10,motorJ11,motorJ12;

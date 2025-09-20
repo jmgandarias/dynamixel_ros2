@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(dynamixel_ros)
+project(dynamixel_ros2)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
@@ -42,8 +42,8 @@ include_directories(
 )
 
 ## Declare a C++ library
-add_library(dynamixel_ros
-  src/dynamixel_ros.cpp
+add_library(dynamixel_ros2
+  src/dynamixel_ros2.cpp
 )
 
 # add_library(dynamixel_sdk
@@ -64,7 +64,7 @@ add_library(dynamixel_ros
 add_executable(testCommunication src/testCommunication.cpp)
 add_dependencies(testCommunication ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(testCommunication
-  dynamixel_ros
+  dynamixel_ros2
   ${catkin_LIBRARIES}
 )
 
@@ -72,7 +72,7 @@ target_link_libraries(testCommunication
 add_executable(blinkingLED src/blinkingLED.cpp)
 add_dependencies(blinkingLED ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(blinkingLED
-  dynamixel_ros
+  dynamixel_ros2
   ${catkin_LIBRARIES}
 )
 
@@ -80,7 +80,7 @@ target_link_libraries(blinkingLED
 add_executable(testPositionControl src/testPositionControl.cpp)
 add_dependencies(testPositionControl ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(testPositionControl
-  dynamixel_ros
+  dynamixel_ros2
   ${catkin_LIBRARIES}
 )
 
@@ -88,7 +88,7 @@ target_link_libraries(testPositionControl
 add_executable(testPWMControl src/testPWMControl.cpp)
 add_dependencies(testPWMControl ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(testPWMControl
-  dynamixel_ros
+  dynamixel_ros2
   ${catkin_LIBRARIES}
 )
 
@@ -96,13 +96,13 @@ target_link_libraries(testPWMControl
 add_executable(dmxlParamsMonitor src/dmxlParamsMonitor.cpp)
 add_dependencies(dmxlParamsMonitor ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(dmxlParamsMonitor
-  dynamixel_ros
+  dynamixel_ros2
   ${catkin_LIBRARIES}
 )
 
 add_executable(pinzaTest src/realTest.cpp)
 add_dependencies(pinzaTest ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(pinzaTest
-  dynamixel_ros
+  dynamixel_ros2
   ${catkin_LIBRARIES}
 )

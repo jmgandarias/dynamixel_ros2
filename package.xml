@@ -1,25 +1,35 @@
 <?xml version="1.0"?>
-<package format="2">
-  <name>dynamixel_ros</name>
-  <version>1.0.1</version>
-  <description>The dynamixel_ros package</description>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>dynamixel_ros2</name>
+  <version>0.0.1</version>
+  <description>The dynamixel_ros2 package</description>
 
-  <author email="maksymsaldat2001@gmail.com">maxxx</author>
   <maintainer email="jmgandarias@uma.es">jmgandarias</maintainer>
+  <license>GPLv3</license>
 
-  <!-- One license tag required, multiple allowed, one license per tag -->
-  <!-- Commonly used license strings: -->
-  <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
-  <license>TODO</license>
+  <url type="repository">https://github.com/jmgandarias/dynamixel_ros2</url>
 
-  <url type="repository">https://github.com/TaISLab/dynamixel_ros</url>
+  <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <buildtool_depend>catkin</buildtool_depend>
+  <!-- runtime & build dependencies for ROS 2 -->
+  <build_depend>rclcpp</build_depend>
+  <exec_depend>rclcpp</exec_depend>
 
-  <depend>roscpp</depend>
-  <depend>std_msgs</depend>
-  <depend>message_generation</depend>
-  <depend>message_runtime</depend>
+  <build_depend>std_msgs</build_depend>
+  <exec_depend>std_msgs</exec_depend>
+
+  <!-- rosidl generators for custom messages (if you have .msg files) -->
+  <build_depend>rosidl_default_generators</build_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+
+  <!-- external library (keep if available for ROS2 or provide as a system dependency) -->
   <depend>dynamixel_sdk</depend>
 
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
 </package>

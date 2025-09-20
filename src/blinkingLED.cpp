@@ -7,11 +7,11 @@
  *      roscore
  * 
  * 2. Launch the example:
- *      rosrun dynamixel_ros blinkingLED  YOUR_PORT PROTOCOL_TYPE BAUDRATE DMXL_ID
+ *      rosrun dynamixel_ros2 blinkingLED  YOUR_PORT PROTOCOL_TYPE BAUDRATE DMXL_ID
 */
 
 #include <ros/ros.h>
-#include <dynamixel_ros.h>
+#include <dynamixel_ros2.h>
 
 void switchLed(dynamixelMotor& motor)
 {

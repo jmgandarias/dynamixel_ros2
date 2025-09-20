@@ -10,7 +10,7 @@
  *      rosrun plotjuggler plotjuggler 
  * 
  * 3. Launch testPositionControl:
- *      rosrun dynamixel_ros testPositionControl  YOUR_PORT PROTOCOL_TYPE BAUDRATE DMXL_ID
+ *      rosrun dynamixel_ros2 testPositionControl  YOUR_PORT PROTOCOL_TYPE BAUDRATE DMXL_ID
  * 
  * 4. Publish any position between 0 and 360 degrees in the created topic:
  *      rostopic pub -1 /user_position_input std_msgs/Int32 "data: DEGREES"
@@ -18,7 +18,7 @@
 
 #include "ros/ros.h"
 #include "std_msgs/Int32.h" 
-#include <dynamixel_ros.h>
+#include <dynamixel_ros2.h>
 
 dynamixelMotor myDynamixel;
 

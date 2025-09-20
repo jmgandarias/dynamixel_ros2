@@ -1,5 +1,5 @@
-#ifndef DYNAMIXEL_ROS_H
-#define DYNAMIXEL_ROS_H
+#ifndef DYNAMIXEL_ROS2_H
+#define DYNAMIXEL_ROS2_H
 
 // DEPENDENCIES
 #include <dynamixel_sdk/dynamixel_sdk.h>
