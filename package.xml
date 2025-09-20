@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>dynamixel_ros</name>
+  <version>1.0.1</version>
+  <description>The dynamixel_ros package</description>
+
+  <author email="maksymsaldat2001@gmail.com">maxxx</author>
+  <maintainer email="jmgandarias@uma.es">jmgandarias</maintainer>
+
+  <!-- One license tag required, multiple allowed, one license per tag -->
+  <!-- Commonly used license strings: -->
+  <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
+  <license>TODO</license>
+
+  <url type="repository">https://github.com/TaISLab/dynamixel_ros</url>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>roscpp</depend>
+  <depend>std_msgs</depend>
+  <depend>message_generation</depend>
+  <depend>message_runtime</depend>
+  <depend>dynamixel_sdk</depend>
+
+</package>
