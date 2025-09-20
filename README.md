@@ -13,5 +13,5 @@ This library uses the [dynamixel SDK](https://emanual.robotis.com/docs/en/softwa
 You must install the ros library first:
 
 ```bash
-$ sudo apt-get install ros-$ROS_DISTRO-dynamixel-sdk
+sudo apt-get install ros-$ROS_DISTRO-dynamixel-sdk
 ```
