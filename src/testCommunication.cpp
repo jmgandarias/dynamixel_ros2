@@ -1,4 +1,6 @@
+#include <rclcpp/rclcpp.hpp>
 #include <dynamixel_ros2.h>
+#include <cstdlib> // std::atoi, std::atof
 
 dynamixelMotor J1("J1",1);
 dynamixelMotor J2("J2",2);
@@ -12,16 +14,19 @@ int main(int argc, char *argv[])
 
     if (argc != 4)
     {
-        printf("Please set '-port_name', '-protocol_version' '-baud_rate' arguments for connected Dynamixels\n");
+        printf("Please set '-port_name' '-protocol_version' '-baud_rate' arguments for connected Dynamixels\n");
         return 0;
     } else
     {
         port_name = argv[1];
-        protocol_version = atoi(argv[2]);
-        baud_rate = atoi(argv[3]);
+        protocol_version = static_cast<float>(std::atof(argv[2]));
+        baud_rate = std::atoi(argv[3]);
     }
 
-    dynamixelMotor::iniComm(port_name,protocol_version,baud_rate);
+    // init rclcpp so RCLCPP logging in the library works
+    rclcpp::init(argc, argv);
+
+    dynamixelMotor::iniComm(port_name, protocol_version, baud_rate);
     J1.setControlTable();
     J2.setControlTable();
 
@@ -99,7 +104,7 @@ int main(int argc, char *argv[])
     J1.getBusWatchdog();
     */
 
-    //PWM TRY
+    // PWM TRY
     J1.setTorqueState(false);
     J1.setOperatingMode(dynamixelMotor::POSITION_CONTROL_MODE);
     J1.getMaxPosLimit();
@@ -112,19 +117,7 @@ int main(int argc, char *argv[])
     {
         J1.setGoalPosition(0);
     }
-    
 
-
-    /*
-    J2.getPWMLimit();
-    J2.setPWMLimit(50);
-    J2.getPWMLimit();
-
-    J2.setOperatingMode(dynamixelMotor::PWM_CONTROL_MODE);
-    J2.setTorqueState(true);
-    J2.setGoalPWM(40);
-    */
-
-
+    rclcpp::shutdown();
     return 1;
 }

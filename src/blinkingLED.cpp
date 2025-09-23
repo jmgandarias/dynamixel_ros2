@@ -10,46 +10,48 @@
  *      rosrun dynamixel_ros2 blinkingLED  YOUR_PORT PROTOCOL_TYPE BAUDRATE DMXL_ID
 */
 
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include <dynamixel_ros2.h>
 
-void switchLed(dynamixelMotor& motor)
-{
-   motor.setLedState(!motor.getLedState());
-}
+#include <cstdlib>   // atoi/atof
+#include <memory>
+#include <chrono>
+
+using namespace std::chrono_literals;
 
 int main(int argc, char *argv[])
 {
-    char* port_name;
-    int baud_rate, dmxl_id;
-    float protocol_version;
-
     if (argc != 5)
     {
-        printf("Please set '-port_name', '-protocol_version' '-baud_rate' '-dynamixel_id' arguments for connected Dynamixels\n");
+        fprintf(stderr, "Usage: %s PORT_NAME PROTOCOL_VERSION BAUDRATE DMXL_ID\n", argv[0]);
         return 0;
-    } else
-    {
-        port_name = argv[1];
-        protocol_version = atoi(argv[2]);
-        baud_rate = atoi(argv[3]);
-        dmxl_id = atoi(argv[4]);
     }
 
-    dynamixelMotor J1("J1",dmxl_id);
-    dynamixelMotor::iniComm(port_name,protocol_version,baud_rate);
-    
-    J1.setControlTable();
+    char* port_name = argv[1];
+    float protocol_version = static_cast<float>(std::atof(argv[2]));
+    int baud_rate = std::atoi(argv[3]);
+    int dmxl_id = std::atoi(argv[4]);
 
-    // ROS node init
-    ros::init(argc, argv, "blinkingLED");
-    ros::NodeHandle nh;
+    // create motor as shared pointer so timer callback can access it safely
+    auto motor = std::make_shared<dynamixelMotor>("J1", dmxl_id);
 
-    // Callback creation
-    auto callbackFunction = std::bind(switchLed,J1);
-    ros::Timer timer = nh.createTimer(ros::Duration(0.5), callbackFunction);
+    if (!dynamixelMotor::iniComm(port_name, protocol_version, baud_rate)) {
+        fprintf(stderr, "Failed to initialize communication on port %s\n", port_name);
+        return 1;
+    }
 
-    ros::spin();
+    motor->setControlTable();
 
+    rclcpp::init(argc, argv);
+    auto node = rclcpp::Node::make_shared("blinkingLED");
+
+    // timer toggles LED every 500 ms
+    auto timer = node->create_wall_timer(500ms, [motor, node]() {
+        motor->setLedState(!motor->getLedState());
+        RCLCPP_INFO(node->get_logger(), "Toggled LED on ID %d", motor->getID());
+    });
+
+    rclcpp::spin(node);
+    rclcpp::shutdown();
     return 0;
 }

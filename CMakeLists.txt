@@ -10,18 +10,58 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
-# try to find dynamixel_sdk - if it is not a CMake package you may need to
-# link/include it as a system library or provide its include path manually
-find_package(dynamixel_sdk REQUIRED OPTIONAL_COMPONENTS)
+# try to find dynamixel_sdk (robust: prefer Config package, fallback to headers/libs)
+find_package(dynamixel_sdk QUIET)
 
-# Generate ROS 2 messages (adjust filenames to your actual .msg files)
-rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/DynamixelState.msg"
-  "msg/DynamixelCommand.msg"
-  DEPENDENCIES std_msgs
-)
+set(DYNAMIXEL_SDK_FOUND FALSE)
+if(dynamixel_sdk_FOUND)
+  set(DYNAMIXEL_SDK_FOUND TRUE)
+  message(STATUS "Found dynamixel_sdk via find_package")
+else()
+  # fallback: search for header and library in CMAKE_PREFIX_PATH and common system locations
+  find_path(DYNAMIXEL_SDK_INCLUDE_DIR
+    NAMES dynamixel_sdk/dynamixel_sdk.h
+    PATHS ${CMAKE_PREFIX_PATH} /usr/include /usr/local/include
+  )
+  find_library(DYNAMIXEL_SDK_LIBRARY
+    NAMES dynamixel_sdk dynamixel_sdk_static
+    PATHS ${CMAKE_PREFIX_PATH} /usr/lib /usr/local/lib /usr/lib/x86_64-linux-gnu
+  )
+  if(DYNAMIXEL_SDK_INCLUDE_DIR AND DYNAMIXEL_SDK_LIBRARY)
+    message(STATUS "Found dynamixel_sdk headers in ${DYNAMIXEL_SDK_INCLUDE_DIR} and lib ${DYNAMIXEL_SDK_LIBRARY}")
+    add_library(dynamixel_sdk::dynamixel_sdk UNKNOWN IMPORTED)
+    set_target_properties(dynamixel_sdk::dynamixel_sdk PROPERTIES
+      IMPORTED_LOCATION "${DYNAMIXEL_SDK_LIBRARY}"
+      INTERFACE_INCLUDE_DIRECTORIES "${DYNAMIXEL_SDK_INCLUDE_DIR}"
+    )
+    set(DYNAMIXEL_SDK_FOUND TRUE)
+  else()
+    message(WARNING "dynamixel_sdk not found. Install ros-$ROS_DISTRO-dynamixel-sdk or build/install the SDK. Compile will fail if code requires the SDK.")
+  endif()
+endif()
 
-ament_export_dependencies(rosidl_default_runtime)
+# Guarded generation: only run rosidl_generate_interfaces if msg/*.msg exist
+set(ROS_MSG_FILES)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/msg")
+  file(GLOB MSG_FULL_PATHS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/msg/*.msg")
+  if(MSG_FULL_PATHS)
+    foreach(_m IN LISTS MSG_FULL_PATHS)
+      list(APPEND ROS_MSG_FILES "msg/${_m}")
+    endforeach()
+  endif()
+endif()
+
+if(ROS_MSG_FILES)
+  message(STATUS "ROS messages found: ${ROS_MSG_FILES}")
+  rosidl_generate_interfaces(${PROJECT_NAME}
+    ${ROS_MSG_FILES}
+    DEPENDENCIES std_msgs
+  )
+  ament_export_dependencies(rosidl_default_runtime)
+else()
+  message(STATUS "No .msg files found in ${CMAKE_CURRENT_SOURCE_DIR}/msg — skipping rosidl_generate_interfaces")
+endif()
+# --- end guarded generation ---
 
 # Include dirs
 include_directories(
@@ -77,6 +117,23 @@ if(TARGET dynamixel_ros2)
   target_link_libraries(pinzaTest dynamixel_ros2)
 endif()
 
+# after creating executables / libraries, link the SDK only if found
+# example for testCommunication and other targets:
+if(DYNAMIXEL_SDK_FOUND)
+  if(TARGET dynamixel_sdk::dynamixel_sdk)
+    # use plain signature to match ament_target_dependencies usage
+    target_link_libraries(testCommunication dynamixel_sdk::dynamixel_sdk)
+    target_link_libraries(blinkingLED dynamixel_sdk::dynamixel_sdk)
+    target_link_libraries(testPositionControl dynamixel_sdk::dynamixel_sdk)
+    target_link_libraries(testPWMControl dynamixel_sdk::dynamixel_sdk)
+    target_link_libraries(dmxlParamsMonitor dynamixel_sdk::dynamixel_sdk)
+    target_link_libraries(pinzaTest dynamixel_sdk::dynamixel_sdk)
+    if(TARGET dynamixel_ros2)
+      target_link_libraries(dynamixel_ros2 dynamixel_sdk::dynamixel_sdk)
+    endif()
+  endif()
+endif()
+
 # Install targets
 install(TARGETS
   testCommunication
@@ -91,8 +148,12 @@ install(TARGETS
 )
 
 # Install message files so they are picked up by rosidl (if you added .msg files)
-install(DIRECTORY msg
-  DESTINATION share/${PROJECT_NAME}
-)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/msg")
+  install(DIRECTORY msg
+    DESTINATION share/${PROJECT_NAME}
+  )
+else()
+  message(STATUS "No msg/ directory found — skipping install(DIRECTORY msg ...)")
+endif()
 
 ament_package()

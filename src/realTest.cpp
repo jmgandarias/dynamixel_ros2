@@ -1,13 +1,14 @@
-#include <ros/ros.h>
-#include <std_msgs/Float32.h>
-#include <std_msgs/Int32.h>
+#include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/int32.hpp>
 #include <dynamixel_ros2.h>
+#include <cstdlib>
 #include <iostream>
 
 dynamixelMotor motorJ0,motorJ1,motorJ2,motorJ10,motorJ11,motorJ12;
 
 // Callback when some data was published in 'pos_user_input'
-void callBack(const std_msgs::Int32::ConstPtr& msg)
+// minimal change: use ROS2 message shared pointer type
+void callBack(const std_msgs::msg::Int32::SharedPtr msg)
 {
     int userValue = msg->data;
     
@@ -61,15 +62,16 @@ int main(int argc, char *argv[])
 
     if (argc != 4)
     {
-        printf("Please set '-port_name', '-protocol_version' '-baud_rate' arguments for connected Dynamixels\n");
+        printf("Please set 'PORT_NAME PROTOCOL_VERSION BAUDRATE' arguments for connected Dynamixels\n");
         return 0;
     } else
     {
         port_name = argv[1];
-        protocol_version = atoi(argv[2]);
-        baud_rate = atoi(argv[3]);
+        protocol_version = static_cast<float>(std::atof(argv[2]));
+        baud_rate = std::atoi(argv[3]);
     }
 
+    // init comm and motor objects (unchanged)
     dynamixelMotor::iniComm(port_name,protocol_version,baud_rate);
     motorJ0 = dynamixelMotor("J0",0);
     motorJ10 = dynamixelMotor("J10",10);
@@ -85,23 +87,23 @@ int main(int argc, char *argv[])
     motorJ2.setControlTable();
     motorJ12.setControlTable();
     
+    // rclcpp init and node creation (minimal change)
+    rclcpp::init(argc, argv);
+    auto node = rclcpp::Node::make_shared("testFingers");
 
-    // ROS node init
-    ros::init(argc, argv, "testFingers");
-    ros::NodeHandle nh;
+    // create subscription using the free-function callback
+    auto user_input_subscriber = node->create_subscription<std_msgs::msg::Int32>(
+        "pos_user_input", 10, callBack);
 
-    ros::Subscriber user_input_subscriber = nh.subscribe("pos_user_input",10,callBack);
+    // loop at 10 Hz
+    rclcpp::Rate loop_rate(10);
 
-    // ROS freq = 10 Hz
-    ros::Rate loop_rate(10);
-
-    while(ros::ok())
+    while (rclcpp::ok())
     {
-        // publishMotorStatus(pos_publisher, vel_publisher, curr_publisher, temp_publisher);
-
-        ros::spinOnce();
+        rclcpp::spin_some(node);
         loop_rate.sleep();
     }
 
+    rclcpp::shutdown();
     return 0;
 }

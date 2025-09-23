@@ -1,6 +1,7 @@
-#include <ros/ros.h>
+#include <rclcpp/rclcpp.hpp>
 #include <dynamixel_ros2.h>
 
+static rclcpp::Logger logger = rclcpp::get_logger("dynamixel_ros2");
 
 dynamixel::PortHandler *myPortHandler = nullptr;
 dynamixel::PacketHandler *myPacketHandler = nullptr;
@@ -196,15 +197,15 @@ bool dynamixelMotor::iniComm(char* PORT_NAME, float PROTOCOL_VERSION, int BAUDRA
 
     if (!myPortHandler->openPort()) 
     {
-        ROS_ERROR("Failed to open the port: %s !", PORT_NAME);
+        RCLCPP_ERROR(logger, "Failed to open the port: %s !", PORT_NAME);
         return false;
     } else if (!myPortHandler->setBaudRate(BAUDRATE))  
     {
-        ROS_ERROR("Failed to set the baudrate: %d !", BAUDRATE);
+        RCLCPP_ERROR(logger, "Failed to set the baudrate: %d !", BAUDRATE);
         return false;
     } else
     {
-        ROS_INFO("\033[1;32mInitialization success\033[0m");
+        RCLCPP_INFO(logger, "\033[1;32mInitialization success\033[0m");
         return true;
     }
 }
@@ -219,7 +220,7 @@ void dynamixelMotor::setControlTable()
 
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the model number. Error code: %d",this->ID,dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the model number. Error code: %d", this->ID, dxl_error);
     } else {
         this->MODEL = static_cast<int>(*model_number); 
 
@@ -268,7 +269,7 @@ void dynamixelMotor::setControlTable()
             break;
         }
 
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Control table set for: %s",this->ID, dynamixelMotor::DMXL_MODELS[this->MODEL].c_str());
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Control table set for: %s", this->ID, dynamixelMotor::DMXL_MODELS[this->MODEL].c_str());
     }
 
     delete[] model_number;
@@ -281,7 +282,6 @@ int dynamixelMotor::getID()
 
 void dynamixelMotor::setID(int NEW_ID)
 {
-    // If ID is changed, please, pay attention to yours declarations. Now, you need to change the 'ID' parameter you use in dynamixelMotor constructor.
     int dxl_comm_result = 0;
     uint8_t dxl_error = 0;
 
@@ -290,17 +290,16 @@ void dynamixelMotor::setID(int NEW_ID)
         dxl_comm_result = myPacketHandler->write1ByteTxRx(myPortHandler,this->ID, this->CONTROL_TABLE["ID"], NEW_ID, &dxl_error);
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the ID. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the ID. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Changed the ID. New ID: %d", this->ID, NEW_ID);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Changed the ID. New ID: %d", this->ID, NEW_ID);
             this->ID = NEW_ID;
         }
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid DMXL ID(0 - 253)", this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid DMXL ID(0 - 253)", this->ID);
     }
-
 }
 
 std::string dynamixelMotor::getModel()
@@ -312,7 +311,7 @@ int dynamixelMotor::getBaudrate()
 {
     uint8_t dxl_error = 0;
     uint8_t *data = new uint8_t[1];
-    int baudrate;
+    int baudrate = 0;
     bool max_baudrate_45M = (this->MODEL == 1180 || this->MODEL == 1170 || this->MODEL == 1280 || this->MODEL == 1270 || 
                              this->MODEL == 1111 || this->MODEL == 1101 || this->MODEL == 1011 || this->MODEL == 1001 ||
                              this->MODEL == 1110 || this->MODEL == 1100 || this->MODEL == 1150 || this->MODEL == 1140 ||
@@ -326,7 +325,8 @@ int dynamixelMotor::getBaudrate()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the baudrate. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the baudrate. Error code: %d", this->ID, dxl_error);
+        delete[] data;
         return -1;
     } else
     {
@@ -334,105 +334,42 @@ int dynamixelMotor::getBaudrate()
         {
             switch(static_cast<int>(*data))
             {
-                case 0:
-                    baudrate = 9600;
-                break;
-
-                case 1:
-                    baudrate = 57600;
-                break;
-
-                case 2:
-                    baudrate = 115200;
-                break;
-
-                case 3:
-                    baudrate = 1e6;
-                break;
-
-                case 4:
-                    baudrate = 2e6;
-                break;
-
-                case 5:
-                    baudrate = 3e6;
-                break;
-
-                case 6:
-                    baudrate = 4e6;
-                break;
-
-                case 7:
-                    baudrate = 4.5e6;
-                break;
-
-                default:
-                    baudrate = 0;
-                break;
+                case 0: baudrate = 9600; break;
+                case 1: baudrate = 57600; break;
+                case 2: baudrate = 115200; break;
+                case 3: baudrate = 1000000; break;
+                case 4: baudrate = 2000000; break;
+                case 5: baudrate = 3000000; break;
+                case 6: baudrate = 4000000; break;
+                case 7: baudrate = 4500000; break;
+                default: baudrate = 0; break;
             }
         } else if(max_baudrate_4M)
         {
             switch (static_cast<int>(*data))
             {
-                case 0:
-                    baudrate = 9600;
-                break;
-
-                case 1:
-                    baudrate = 57600;
-                break;
-
-                case 2:
-                    baudrate = 115200;
-                break;
-
-                case 3:
-                    baudrate = 1e6;
-                break;
-
-                case 4:
-                    baudrate = 2e6;
-                break;
-
-                case 5:
-                    baudrate = 3e6;
-                break;
-
-                case 6:
-                    baudrate = 4e6;
-                break;
-            
-                default:
-                    baudrate = 0;
-                break;
+                case 0: baudrate = 9600; break;
+                case 1: baudrate = 57600; break;
+                case 2: baudrate = 115200; break;
+                case 3: baudrate = 1000000; break;
+                case 4: baudrate = 2000000; break;
+                case 5: baudrate = 3000000; break;
+                case 6: baudrate = 4000000; break;
+                default: baudrate = 0; break;
             }
         } else if(max_baudrate_1M)
         {
             switch (static_cast<int>(*data))
             {
-                case 0:
-                    baudrate = 9600;
-                break;
-            
-                case 1:
-                    baudrate = 57600;
-                break;
-
-                case 2:
-                    baudrate = 115200;
-                break;
-
-                case 3:
-                    baudrate = 1e6;
-                break;
-
-                default:
-                    baudrate = 0;
-                break;
+                case 0: baudrate = 9600; break;
+                case 1: baudrate = 57600; break;
+                case 2: baudrate = 115200; break;
+                case 3: baudrate = 1000000; break;
+                default: baudrate = 0; break;
             }
         }
         
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current baudrate is %d bps",this->ID,baudrate);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current baudrate is %d bps", this->ID, baudrate);
         delete[] data;
         return baudrate;
     }
@@ -442,22 +379,22 @@ int dynamixelMotor::getReturnDelayTime() //RETURNS MICRO SECONDS
 {
     uint8_t dxl_error = 0;
     uint8_t *data = new uint8_t[1];
-    int time;
+    int time = 0;
 
     int dxl_comm_result = myPacketHandler->read1ByteTxRx(myPortHandler, this->ID, this->CONTROL_TABLE["RETURN_DELAY_TIME"], data, &dxl_error);
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the return delay time. Error code: %d", this->ID,dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the return delay time. Error code: %d", this->ID, dxl_error);
+        delete[] data;
         return -1;
     } else 
     {
         time = static_cast<int>(*data)*2;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current return delay time is %d micro seconds",this->ID,time);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current return delay time is %d micro seconds", this->ID, time);
+        delete[] data;
         return time;
     }
-
-    delete[] data;
 }
 
 void dynamixelMotor::setReturnDelayTime(int RETURN_DELAY_TIME)
@@ -471,14 +408,14 @@ void dynamixelMotor::setReturnDelayTime(int RETURN_DELAY_TIME)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the return delay time. Error code: %d", this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the return delay time. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Return delay time changed to %d micro seconds.",this->ID,RETURN_DELAY_TIME);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Return delay time changed to %d micro seconds.", this->ID, RETURN_DELAY_TIME);
         }
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid return delay time(0 - 508)",this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid return delay time(0 - 508)", this->ID);
     }
 }
 
@@ -491,7 +428,7 @@ void dynamixelMotor::showDriveModeConfig()
 
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the drive mode configuration. Error code: %d",this->ID,dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the drive mode configuration. Error code: %d", this->ID, dxl_error);
     } else 
     {
         bool reverse_mode = (*config & 0b00000001) != 0;
@@ -505,7 +442,7 @@ void dynamixelMotor::showDriveModeConfig()
         s_time_based_profile = time_based_profile ? "ON" : "OFF";
         s_torque_auto_on = auto_torque ? "ON" : "OFF";    
 
-        ROS_INFO("\n \033[0;35mCurrent config\033[0m \n REVERSE_MODE: %s \n SLAVE MODE: %s \n TIME BASED PROFILE: %s \n AUTO TORQUE: %s",
+        RCLCPP_INFO(logger, "\n \033[0;35mCurrent config\033[0m \n REVERSE_MODE: %s \n SLAVE MODE: %s \n TIME BASED PROFILE: %s \n AUTO TORQUE: %s",
         s_reverse_mode.c_str(), s_slave_mode.c_str(), s_time_based_profile.c_str(), s_torque_auto_on.c_str());
     }
 
@@ -547,10 +484,10 @@ void dynamixelMotor::configDriveMode(bool REVERSE_MODE, bool SLAVE_MODE, bool TI
 
     if (dxl_comm_result != COMM_SUCCESS)    
     {
-        ROS_ERROR("DMXL %d: Failed to change the drive mode configuration. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to change the drive mode configuration. Error code: %d", this->ID, dxl_error);
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Drive mode configuration changed.",this->ID);      
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Drive mode configuration changed.", this->ID);      
         this->showDriveModeConfig();
     }
 
@@ -565,43 +502,25 @@ std::string dynamixelMotor::getOperatingMode()
 
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the operating mode. Error code: %d",this->ID,dxl_error);
-        return nullptr;
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the operating mode. Error code: %d", this->ID, dxl_error);
+        delete[] op_mode;
+        return std::string("Unknown mode");
     } else 
     {
+        std::string result;
         switch (static_cast<int>(*op_mode))
         {
-            case dynamixelMotor::CURRENT_CONTROL_MODE:
-                return "Current Control";
-            break;
-
-            case dynamixelMotor::VELOCITY_CONTROL_MODE:
-                return "Velocity Control";
-            break;
-
-            case dynamixelMotor::POSITION_CONTROL_MODE:
-                return "Position Control";
-            break;
-
-            case dynamixelMotor::EXTENDED_POSITION_CONTROL_MODE:
-                return "Extended Position Control";
-            break;
-
-            case dynamixelMotor::CURRENT_BASED_POSITION_CONTROL:
-                return "Current Based Position Control";
-            break;
-
-            case dynamixelMotor::PWM_CONTROL_MODE:
-                return "PWM Control";
-            break;
-        
-            default:
-                return "Unknown mode";
-            break;
+            case dynamixelMotor::CURRENT_CONTROL_MODE: result = "Current Control"; break;
+            case dynamixelMotor::VELOCITY_CONTROL_MODE: result = "Velocity Control"; break;
+            case dynamixelMotor::POSITION_CONTROL_MODE: result = "Position Control"; break;
+            case dynamixelMotor::EXTENDED_POSITION_CONTROL_MODE: result = "Extended Position Control"; break;
+            case dynamixelMotor::CURRENT_BASED_POSITION_CONTROL: result = "Current Based Position Control"; break;
+            case dynamixelMotor::PWM_CONTROL_MODE: result = "PWM Control"; break;
+            default: result = "Unknown mode"; break;
         }
+        delete[] op_mode;
+        return result;
     }
-
-    delete[] op_mode;
 }
 
 void dynamixelMotor::setOperatingMode(int MODE)
@@ -618,15 +537,15 @@ void dynamixelMotor::setOperatingMode(int MODE)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the operatin mode. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the operatin mode. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Changed the operating mode.", this->ID);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Changed the operating mode.", this->ID);
         }
 
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid DMXL operating mode.", this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid DMXL operating mode.", this->ID);
     }
 }
 
@@ -639,7 +558,7 @@ int dynamixelMotor::getShadowID()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the secondary ID. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the secondary ID. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
@@ -647,10 +566,10 @@ int dynamixelMotor::getShadowID()
 
         if(shadow_id > 252)
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Current shadow id: %d (disabled) ",this->ID,shadow_id);
+            RCLCPP_INFO(logger, "DMXL %d: Current shadow id: %d (disabled) ", this->ID, shadow_id);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Current shadow id: %d",this->ID,shadow_id);
+            RCLCPP_INFO(logger, "DMXL %d: Current shadow id: %d", this->ID, shadow_id);
         }
         return shadow_id;
     }
@@ -669,21 +588,21 @@ void dynamixelMotor::setShadowID(int NEW_SH_ID)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the secondary ID. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the secondary ID. Error code: %d", this->ID, dxl_error);
         } else 
         {
             if(NEW_SH_ID == 253 || NEW_SH_ID == 254 || NEW_SH_ID == 255)
             {
-                ROS_INFO("\033[1;35mDMXL %d\033[0m: Secondary ID was set to %d (disabled).", this->ID, NEW_SH_ID);
+                RCLCPP_INFO(logger, "DMXL %d: Secondary ID was set to %d (disabled).", this->ID, NEW_SH_ID);
 
             } else {
-                ROS_INFO("\033[1;35mDMXL %d\033[0m: Changed the secondary ID. New secondary ID: %d", this->ID, NEW_SH_ID);
+                RCLCPP_INFO(logger, "DMXL %d: Changed the secondary ID. New secondary ID: %d", this->ID, NEW_SH_ID);
             }
         }
 
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid DMXL SHADOW ID(0 - 255)", this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid DMXL SHADOW ID(0 - 255)", this->ID);
     }
 }
 
@@ -696,11 +615,11 @@ int dynamixelMotor::getProcotolType()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the protocol type. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the protocol type. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current protocol type: %d.0",this->ID,static_cast<int>(*data));
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current protocol type: %d.0", this->ID, static_cast<int>(*data));
         return static_cast<int>(*data);
     }
 
@@ -716,12 +635,12 @@ int dynamixelMotor::getHomingOffset()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the homing offset. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the homing offset. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         double degrees = static_cast<double>(*data)* 0.088;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current homing offset is: %.1f degrees",this->ID,degrees);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current homing offset is: %.1f degrees", this->ID, degrees);
         return static_cast<int>(*data);
     }
 
@@ -738,15 +657,15 @@ void dynamixelMotor::setHomingOffset(int DEGREES)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the homing offset. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the homing offset. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Changed the homing offset. New homing offset: %d degrees", this->ID, DEGREES);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Changed the homing offset. New homing offset: %d degrees", this->ID, DEGREES);
         }
 
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid HOMING OFFSET(between 255rev and -255rev)", this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid HOMING OFFSET(between 255rev and -255rev)", this->ID);
     }
 }
 
@@ -759,12 +678,12 @@ double dynamixelMotor::getMovingThreshold()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the moving threshold. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the moving threshold. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         double RPM = static_cast<double>(*data) * 0.229;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current moving threshold is: %.1f rpm",this->ID,RPM);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current moving threshold is: %.1f rpm", this->ID, RPM);
         return RPM;
     }
 
@@ -782,15 +701,15 @@ void dynamixelMotor::setMovingThreshold(double RPM)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the moving threshold. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the moving threshold. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Changed the moving threshold. New moving threshold: %.1f rpm", this->ID, RPM);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Changed the moving threshold. New moving threshold: %.1f rpm", this->ID, RPM);
         }
 
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid moving threshold(between 0rpm and 235rpm)", this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid moving threshold(between 0rpm and 235rpm)", this->ID);
     }
 }
 
@@ -803,11 +722,11 @@ int dynamixelMotor::getTempLimit()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the temperature limit. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the temperature limit. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current temperature limit is: %d C",this->ID,static_cast<int>(*data));
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current temperature limit is: %d C", this->ID, static_cast<int>(*data));
         return static_cast<int>(*data);
     }
 
@@ -824,15 +743,15 @@ void dynamixelMotor::setTempLimit(int TEMPERATURE)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the temperature limit. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the temperature limit. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Temperature limit changed to: %d C", this->ID, TEMPERATURE);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Temperature limit changed to: %d C", this->ID, TEMPERATURE);
         }
 
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid temperature limit(0-100C)", this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid temperature limit(0-100C)", this->ID);
     }
 }
 
@@ -845,12 +764,12 @@ float dynamixelMotor::getMaxVoltageLimit()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the max voltage limit. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the max voltage limit. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         float voltage = static_cast<float>(*data)/10;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current max voltage limit is: %.1f V",this->ID,voltage);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current max voltage limit is: %.1f V", this->ID, voltage);
         return voltage;
     }
 
@@ -868,15 +787,15 @@ void dynamixelMotor::setMaxVoltageLimit(float MAX_VOLTAGE)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the max voltage limit. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the max voltage limit. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Max voltage limit changed to: %.1f V", this->ID, MAX_VOLTAGE);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Max voltage limit changed to: %.1f V", this->ID, MAX_VOLTAGE);
         }
 
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid max voltage limit(9.5-16V)", this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid max voltage limit(9.5-16V)", this->ID);
     }
 }
 
@@ -889,12 +808,12 @@ float dynamixelMotor::getMinVoltageLimit()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the min voltage limit. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the min voltage limit. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         float voltage = static_cast<float>(*data)/10;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current min voltage limit is: %.1f V",this->ID,voltage);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current min voltage limit is: %.1f V", this->ID, voltage);
         return voltage;
     }
 
@@ -912,15 +831,15 @@ void dynamixelMotor::setMinVoltageLimit(float MIN_VOLTAGE)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the min voltage limit. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the min voltage limit. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Min voltage limit changed to: %.1f V", this->ID, MIN_VOLTAGE);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Min voltage limit changed to: %.1f V", this->ID, MIN_VOLTAGE);
         }
 
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid min voltage limit(9.5-16V)", this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid min voltage limit(9.5-16V)", this->ID);
     }
 }
 
@@ -934,12 +853,12 @@ int dynamixelMotor::getPWMLimit()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the PWM limit. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the PWM limit. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         float PWM_percent = static_cast<int>(*data) * conversion;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current PWM limit is: %.1f %%",this->ID,PWM_percent);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current PWM limit is: %.1f %%", this->ID, PWM_percent);
         return PWM_percent;
     }
 
@@ -957,15 +876,15 @@ void dynamixelMotor::setPWMLimit(int PWM)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the PWM limit. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the PWM limit. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: PWM limit changed to: %.1f %%", this->ID, (float)PWM);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: PWM limit changed to: %.1f %%", this->ID, (float)PWM);
         }
 
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid PWM limit(0-100%%)", this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid PWM limit(0-100%%)", this->ID);
     }
 }
 
@@ -979,12 +898,12 @@ float dynamixelMotor::getCurrentLimit()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the current limit. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the current limit. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         float current_mA = static_cast<int>(*data) * conversion;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current limit is: %.1f mA",this->ID,current_mA);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current limit is: %.1f mA", this->ID, current_mA);
         return current_mA;
     }
 
@@ -1002,15 +921,15 @@ void dynamixelMotor::setCurrentLimit(float CURRENT_mA)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the current limit. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the current limit. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Current limit changed to: %.1f mA", this->ID, CURRENT_mA);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current limit changed to: %.1f mA", this->ID, CURRENT_mA);
         }
 
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid current limit(0-3200mA)", this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid current limit(0-3200mA)", this->ID);
     }
 }
 
@@ -1024,12 +943,12 @@ float dynamixelMotor::getVelLimit()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the velocity limit. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the velocity limit. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         float VELOCITY_RPM = static_cast<int>(*data) * conversion;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current velocity limit is: %.1f rpm",this->ID,VELOCITY_RPM);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current velocity limit is: %.1f rpm", this->ID, VELOCITY_RPM);
         return VELOCITY_RPM;
     }
 
@@ -1047,15 +966,15 @@ void dynamixelMotor::setVelLimit(float VEL_LIMIT_RPM)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the velocity limit. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the velocity limit. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Velocity limit changed to: %.1f rpm", this->ID, VEL_LIMIT_RPM);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Velocity limit changed to: %.1f rpm", this->ID, VEL_LIMIT_RPM);
         }
 
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid velocity limit(0-324rpm)", this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid velocity limit(0-324rpm)", this->ID);
     }
 }
 
@@ -1069,12 +988,12 @@ float dynamixelMotor::getMaxPosLimit()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the max. position limit. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the max. position limit. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         float MAX_POS_LIMIT_DEGREES = static_cast<int>(*data) * conversion;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Max. position limit is: %.1f degrees",this->ID,MAX_POS_LIMIT_DEGREES);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Max. position limit is: %.1f degrees", this->ID, MAX_POS_LIMIT_DEGREES);
         return MAX_POS_LIMIT_DEGREES;
     }
 
@@ -1092,15 +1011,15 @@ void dynamixelMotor::setMaxPosLimit(float MAX_POS_LIMIT_DEGREES)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the max. position limit. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the max. position limit. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Max. position limit changed to: %.1f degrees", this->ID, MAX_POS_LIMIT_DEGREES);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Max. position limit changed to: %.1f degrees", this->ID, MAX_POS_LIMIT_DEGREES);
         }
 
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid max. position limit(0-360 degrees)", this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid max. position limit(0-360 degrees)", this->ID);
     }
 }
 
@@ -1114,12 +1033,12 @@ float dynamixelMotor::getMinPosLimit()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the min. position limit. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the min. position limit. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         float MIN_POS_LIMIT_DEGREES = static_cast<int>(*data) * conversion;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Min. position limit is: %.1f degrees",this->ID,MIN_POS_LIMIT_DEGREES);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Min. position limit is: %.1f degrees", this->ID, MIN_POS_LIMIT_DEGREES);
         return MIN_POS_LIMIT_DEGREES;
     }
 
@@ -1137,15 +1056,15 @@ void dynamixelMotor::setMinPosLimit(float MIN_POS_LIMIT_DEGREES)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the min. position limit. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the min. position limit. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Min. position limit changed to: %.1f degrees", this->ID, MIN_POS_LIMIT_DEGREES);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Min. position limit changed to: %.1f degrees", this->ID, MIN_POS_LIMIT_DEGREES);
         }
 
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid max. position limit(0-360 degrees)", this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid max. position limit(0-360 degrees)", this->ID);
     }
 }
 
@@ -1158,7 +1077,7 @@ void dynamixelMotor::showStartupConfig()
 
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the startup configuration. Error code: %d",this->ID,dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the startup configuration. Error code: %d", this->ID, dxl_error);
     } else 
     {
         bool TORQUE_ON = (*config & 0b00000001) != 0;
@@ -1168,7 +1087,7 @@ void dynamixelMotor::showStartupConfig()
         s_torque_on = TORQUE_ON ? "ON" : "OFF";
         s_ram_restore = RAM_RESTORE ? "ON" : "OFF";
 
-        ROS_INFO("\n \033[0;35mStartup config\033[0m \n TORQUE ON: %s \n RAM RESTORE: %s",
+        RCLCPP_INFO(logger, "\n \033[0;35mStartup config\033[0m \n TORQUE ON: %s \n RAM RESTORE: %s",
         s_torque_on.c_str(), s_ram_restore.c_str());
     }
 
@@ -1195,10 +1114,10 @@ void dynamixelMotor::configStartup(bool TORQUE_ON, bool RAM_RESTORE)
 
     if (dxl_comm_result != COMM_SUCCESS)    
     {
-        ROS_ERROR("DMXL %d: Failed to change the startup configuration. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to change the startup configuration. Error code: %d", this->ID, dxl_error);
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Startup configuration changed.",this->ID);      
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Startup configuration changed.", this->ID);      
         this->showStartupConfig();
     }
 }
@@ -1212,7 +1131,7 @@ void dynamixelMotor::showShutdownConfig()
 
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the shutdown configuration. Error code: %d",this->ID,dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the shutdown configuration. Error code: %d", this->ID, dxl_error);
     } else 
     {
         bool INPUT_VOLTAGE_ERROR = (*config & 0b00000001) != 0;
@@ -1229,7 +1148,7 @@ void dynamixelMotor::showShutdownConfig()
         s_electrical_shock_error = ELECTRICAL_SHOCK_ERROR ? "ON" : "OFF";
         s_overload_error = OVERLOAD_ERROR ? "ON" : "OFF";
 
-        ROS_INFO("\n \033[0;35mShutdown config\033[0m \n INPUT VOLTAGE ERROR: %s \n OVERHEATING ERROR: %s \n ENCODER ERROR: %s \n ELECTRICAL SHOCK ERROR: %s \n OVERLOAD ERROR: %s",
+        RCLCPP_INFO(logger, "\n \033[0;35mShutdown config\033[0m \n INPUT VOLTAGE ERROR: %s \n OVERHEATING ERROR: %s \n ENCODER ERROR: %s \n ELECTRICAL SHOCK ERROR: %s \n OVERLOAD ERROR: %s",
         s_input_voltage_error.c_str(), s_overheating_error.c_str(), s_encoder_error.c_str(), s_electrical_shock_error.c_str(), s_overload_error.c_str());
     }
 
@@ -1271,10 +1190,10 @@ void dynamixelMotor::configShutdown(bool INPUT_VOLTAGE_ERROR, bool OVERHEATING_E
 
     if (dxl_comm_result != COMM_SUCCESS)    
     {
-        ROS_ERROR("DMXL %d: Failed to change the shutdown configuration. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to change the shutdown configuration. Error code: %d", this->ID, dxl_error);
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Shutdown configuration changed.",this->ID);      
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Shutdown configuration changed.", this->ID);      
         this->showShutdownConfig();
     }
 }
@@ -1288,7 +1207,7 @@ bool dynamixelMotor::getTorqueState()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the torque state. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the torque state. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
@@ -1304,7 +1223,7 @@ bool dynamixelMotor::getTorqueState()
             s_torque_state = "ON";
         }
 
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Torque is: %s",this->ID,s_torque_state.c_str());
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Torque is: %s", this->ID, s_torque_state.c_str());
         return torque_state;
     }
 
@@ -1320,10 +1239,10 @@ void dynamixelMotor::setTorqueState(bool TORQUE_ENABLE)
 
     if (dxl_comm_result != COMM_SUCCESS)    
     {
-        ROS_ERROR("DMXL %d: Failed to change the torque state. Error code: %d",this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to change the torque state. Error code: %d", this->ID, dxl_error);
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Torque state is set to: %s", this->ID, s_torque_state.c_str());
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Torque state is set to: %s", this->ID, s_torque_state.c_str());
     }
 }
 
@@ -1336,7 +1255,7 @@ bool dynamixelMotor::getLedState()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the LED state. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the LED state. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
@@ -1352,7 +1271,7 @@ bool dynamixelMotor::getLedState()
             s_led_state = "ON";
         }
 
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: LED is: %s",this->ID,s_led_state.c_str());
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: LED is: %s", this->ID, s_led_state.c_str());
         return led_state;
     }
 
@@ -1368,10 +1287,10 @@ void dynamixelMotor::setLedState(bool LED_STATE)
 
     if (dxl_comm_result != COMM_SUCCESS)    
     {
-        ROS_ERROR("DMXL %d: Failed to change the LED state. Error code: %d",this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to change the LED state. Error code: %d", this->ID, dxl_error);
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: LED state is set to: %s", this->ID, s_led_state.c_str());
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: LED state is set to: %s", this->ID, s_led_state.c_str());
     }
 }
 
@@ -1384,12 +1303,12 @@ int dynamixelMotor::getStatusReturnLevel()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the status return packet. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the status return packet. Error code: %d", this->ID, dxl_error);
         return -1;
 
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current Status Return Level is: %d", this->ID, static_cast<int>(*data));
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current Status Return Level is: %d", this->ID, static_cast<int>(*data));
         return static_cast<int>(*data); 
     }
 
@@ -1404,10 +1323,10 @@ void dynamixelMotor::setStatusReturnLevel(int STATUS_RETURN_LEVEL)
 
     if (dxl_comm_result != COMM_SUCCESS)    
     {
-        ROS_ERROR("DMXL %d: Failed to change the Status Return Level. Error code: %d",this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to change the Status Return Level. Error code: %d", this->ID, dxl_error);
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Status Return Level is set to: %d", this->ID, STATUS_RETURN_LEVEL);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Status Return Level is set to: %d", this->ID, STATUS_RETURN_LEVEL);
     }
 
 }
@@ -1422,7 +1341,7 @@ std::vector<bool> dynamixelMotor::getHardwareErrorStatus()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the hardware error status. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the hardware error status. Error code: %d", this->ID, dxl_error);
 
     } else 
     {
@@ -1433,8 +1352,8 @@ std::vector<bool> dynamixelMotor::getHardwareErrorStatus()
             errorStatus[i] = bitValue;
         }
         
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current Hardware Error status was saved.", this->ID);
-        ROS_INFO("\033[0;35mHardware error status\033[0m:");
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current Hardware Error status was saved.", this->ID);
+        RCLCPP_INFO(logger, "\033[0;35mHardware error status\033[0m:");
         for(size_t i=0; i<errorStatus.size(); ++i)
         {
             std::string error = "";
@@ -1469,7 +1388,7 @@ std::vector<bool> dynamixelMotor::getHardwareErrorStatus()
                 default:
                 break;
             } 
-            ROS_INFO("%s [%zu]: %s",error.c_str(),i,errorStatus[i] ? "true" : "false");
+            RCLCPP_INFO(logger, "%s [%zu]: %s", error.c_str(), i, errorStatus[i] ? "true" : "false");
         }
     }
 
@@ -1486,11 +1405,11 @@ void dynamixelMotor::getVelocityPIValues(int &P, int &I)
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the velocity controllers 'I' component value. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the velocity controllers 'I' component value. Error code: %d", this->ID, dxl_error);
 
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current velocity controller's 'I' components value is: %d", this->ID, static_cast<int>(*data));
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current velocity controller's 'I' components value is: %d", this->ID, static_cast<int>(*data));
         I = static_cast<int>(*data); 
     }
 
@@ -1498,11 +1417,11 @@ void dynamixelMotor::getVelocityPIValues(int &P, int &I)
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the velocity controllers 'P' component value. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the velocity controllers 'P' component value. Error code: %d", this->ID, dxl_error);
 
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current velocity controller's 'P' components value is: %d", this->ID, static_cast<int>(*data));
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current velocity controller's 'P' components value is: %d", this->ID, static_cast<int>(*data));
         P = static_cast<int>(*data); 
     }
     
@@ -1519,14 +1438,14 @@ void dynamixelMotor::setVelocityPIValues(int P, int I)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the velocity controllers 'P' component value. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the velocity controllers 'P' component value. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: The velocity controllers 'P' component value is set to: %d", this->ID, P);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: The velocity controllers 'P' component value is set to: %d", this->ID, P);
         }
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid velocity controllers 'P' component value. (0 - 16.383)",this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid velocity controllers 'P' component value. (0 - 16.383)", this->ID);
     }
 
     if(I >= 0 && I <= 16383)
@@ -1535,14 +1454,14 @@ void dynamixelMotor::setVelocityPIValues(int P, int I)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the velocity controllers 'I' component value. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the velocity controllers 'I' component value. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: The velocity controllers 'I' component value is set to: %d", this->ID, I);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: The velocity controllers 'I' component value is set to: %d", this->ID, I);
         }
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid velocity controllers 'I' component value. (0 - 16.383)",this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid velocity controllers 'I' component value. (0 - 16.383)", this->ID);
     }
 }
 
@@ -1555,11 +1474,11 @@ void dynamixelMotor::getPositionPIDValues(int &P, int &I, int &D)
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the position controllers 'P' component value. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the position controllers 'P' component value. Error code: %d", this->ID, dxl_error);
 
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current position controller's 'P' components value is: %d", this->ID, static_cast<int>(*data));
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current position controller's 'P' components value is: %d", this->ID, static_cast<int>(*data));
         P = static_cast<int>(*data); 
     }
 
@@ -1567,11 +1486,11 @@ void dynamixelMotor::getPositionPIDValues(int &P, int &I, int &D)
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the position controllers 'I' component value. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the position controllers 'I' component value. Error code: %d", this->ID, dxl_error);
 
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current position controller's 'I' components value is: %d", this->ID, static_cast<int>(*data));
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current position controller's 'I' components value is: %d", this->ID, static_cast<int>(*data));
         I = static_cast<int>(*data); 
     }
 
@@ -1579,11 +1498,11 @@ void dynamixelMotor::getPositionPIDValues(int &P, int &I, int &D)
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the position controllers 'D' component value. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the position controllers 'D' component value. Error code: %d", this->ID, dxl_error);
 
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current position controller's 'D' components value is: %d", this->ID, static_cast<int>(*data));
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current position controller's 'D' components value is: %d", this->ID, static_cast<int>(*data));
         D = static_cast<int>(*data); 
     }
     
@@ -1600,14 +1519,14 @@ void dynamixelMotor::setPositionPIDValues(int P, int I, int D)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the position controllers 'P' component value. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the position controllers 'P' component value. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: The position controllers 'P' component value is set to: %d", this->ID, P);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: The position controllers 'P' component value is set to: %d", this->ID, P);
         }
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid position controllers 'P' component value. (0 - 16.383)",this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid position controllers 'P' component value. (0 - 16.383)", this->ID);
     }
 
     if(I >= 0 && I <= 16383)
@@ -1616,14 +1535,14 @@ void dynamixelMotor::setPositionPIDValues(int P, int I, int D)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the position controllers 'I' component value. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the position controllers 'I' component value. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: The position controllers 'I' component value is set to: %d", this->ID, I);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: The position controllers 'I' component value is set to: %d", this->ID, I);
         }
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid position controllers 'I' component value. (0 - 16.383)",this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid position controllers 'I' component value. (0 - 16.383)", this->ID);
     }
 
     if(D >= 0 && D <= 16383)
@@ -1632,14 +1551,14 @@ void dynamixelMotor::setPositionPIDValues(int P, int I, int D)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the position controllers 'D' component value. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the position controllers 'D' component value. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: The position controllers 'D' component value is set to: %d", this->ID, D);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: The position controllers 'D' component value is set to: %d", this->ID, D);
         }
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid position controllers 'D' component value. (0 - 16.383)",this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid position controllers 'D' component value. (0 - 16.383)", this->ID);
     }
 }
 
@@ -1652,11 +1571,11 @@ void dynamixelMotor::getFeedforwardGains(int &FFG1, int &FFG2)
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the feedforward 1st gain value. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the feedforward 1st gain value. Error code: %d", this->ID, dxl_error);
 
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current feedforward 1st gain value is: %d", this->ID, static_cast<int>(*data));
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current feedforward 1st gain value is: %d", this->ID, static_cast<int>(*data));
         FFG1 = static_cast<int>(*data); 
     }
 
@@ -1664,11 +1583,11 @@ void dynamixelMotor::getFeedforwardGains(int &FFG1, int &FFG2)
     
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the feedforward 2nd gain value. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the feedforward 2nd gain value. Error code: %d", this->ID, dxl_error);
 
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current feedforward 2nd gain value is: %d", this->ID, static_cast<int>(*data));
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current feedforward 2nd gain value is: %d", this->ID, static_cast<int>(*data));
         FFG2 = static_cast<int>(*data); 
     }
     
@@ -1685,30 +1604,30 @@ void dynamixelMotor::setFeedforwardGains(int FFG1, int FFG2)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the feedforward 1st gain value. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the feedforward 1st gain value. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: The feedforward 1st gain value is set to: %d", this->ID, FFG1);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: The feedforward 1st gain value is set to: %d", this->ID, FFG1);
         }
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid feedforward 1st gain value. (0 - 16.383)",this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid feedforward 1st gain value. (0 - 16.383)", this->ID);
     }
 
     if(FFG2 >= 0 && FFG2 <= 16383)
     {
-        int dxl_comm_result = myPacketHandler->write2ByteTxRx(myPortHandler,this->ID, this->CONTROL_TABLE["FEEDFORWARD_2nd_GAIN"],FFG2, &dxl_error);
+        int dxl_comm_result = myPacketHandler->write2ByteTxRx(myPortHandler,this->ID, this->CONTROL_TABLE["FEEDFORWARD_2nd_GAIN"], FFG2, &dxl_error);
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the feedforward 2nd gain value. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the feedforward 2nd gain value. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: The feedforward 2nd gain value is set to: %d", this->ID, FFG2);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: The feedforward 2nd gain value is set to: %d", this->ID, FFG2);
         }
     } else
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid feedforward 2nd gain value. (0 - 16.383)",this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid feedforward 2nd gain value. (0 - 16.383)", this->ID);
     }
 }
 
@@ -1721,7 +1640,7 @@ int dynamixelMotor::getBusWatchdog()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the bus watchdog state. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the bus watchdog state. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
@@ -1729,11 +1648,11 @@ int dynamixelMotor::getBusWatchdog()
 
         if(bw_value == 0)
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Current bus watchdog value is: %d (Disabled)",this->ID, bw_value);
+            RCLCPP_INFO(logger, "DMXL %d: Current bus watchdog value is: %d (Disabled)", this->ID, bw_value);
         } else
         {
             int bw_time_ms = bw_value*20;
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Current bus watchdog value is: %d (%dms)",this->ID, bw_value, bw_time_ms);
+            RCLCPP_INFO(logger, "DMXL %d: Current bus watchdog value is: %d (%dms)", this->ID, bw_value, bw_time_ms);
         }
 
         return bw_value;
@@ -1750,16 +1669,16 @@ void dynamixelMotor::setBusWatchdog(int BUS_WATCHDOG_VALUE)
 
     if (dxl_comm_result != COMM_SUCCESS)    
     {
-        ROS_ERROR("DMXL %d: Failed to change the bus watchdog state. Error code: %d",this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to change the bus watchdog state. Error code: %d", this->ID, dxl_error);
     } else 
     {
         int BUS_WATCHDOG_TIME = BUS_WATCHDOG_VALUE*20;
         if(BUS_WATCHDOG_VALUE == 0)
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Bus watchdog value is set to: %d (Disabled)", this->ID, BUS_WATCHDOG_VALUE);
+            RCLCPP_INFO(logger, "DMXL %d: Bus watchdog value is set to: %d (Disabled)", this->ID, BUS_WATCHDOG_VALUE);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Bus watchdog value is set to: %d (%d ms)", this->ID, BUS_WATCHDOG_VALUE, BUS_WATCHDOG_TIME);
+            RCLCPP_INFO(logger, "DMXL %d: Bus watchdog value is set to: %d (%d ms)", this->ID, BUS_WATCHDOG_VALUE, BUS_WATCHDOG_TIME);
         }
     }
 }
@@ -1774,12 +1693,12 @@ int dynamixelMotor::getGoalPWM()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the goal PWM. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the goal PWM. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         float percent_PWM = static_cast<int>(*data)*conversion_to_percent;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current goal PWM is: %d (%.1f %%)",this->ID, static_cast<int>(*data),percent_PWM);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current goal PWM is: %d (%.1f %%)", this->ID, static_cast<int>(*data), percent_PWM);
         return percent_PWM;
     }
 
@@ -1797,14 +1716,14 @@ void dynamixelMotor::setGoalPWM(int GOAL_PWM)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the goal PWM. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the goal PWM. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Goal PWM is set to: %d (%d %%)", this->ID, (int)conversion*GOAL_PWM, GOAL_PWM);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Goal PWM is set to: %d (%d %%)", this->ID, (int)conversion*GOAL_PWM, GOAL_PWM);
         }
     } else 
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid goal PWM (Must be lower than PWM Limit of:%d).",this->ID, this->getPWMLimit());
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid goal PWM (Must be lower than PWM Limit of:%d).", this->ID, this->getPWMLimit());
     }
 }
 
@@ -1818,12 +1737,12 @@ int dynamixelMotor::getGoalCurrent()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the goal current. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the goal current. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         float current_mA = static_cast<int>(*data)*conversion_to_mA;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current goal current is: %.1f mA",this->ID, current_mA);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current goal current is: %.1f mA", this->ID, current_mA);
         return current_mA;
     }
 
@@ -1841,14 +1760,14 @@ void dynamixelMotor::setGoalCurrent(int GOAL_CURRENT)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the goal current. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the goal current. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Goal current is set to: %d mA", this->ID, GOAL_CURRENT);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Goal current is set to: %d mA", this->ID, GOAL_CURRENT);
         }
     } else 
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid goal current (Must be lower than current Limit of: %.1f).",this->ID, this->getCurrentLimit());
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid goal current (Must be lower than current Limit of: %.1f).", this->ID, this->getCurrentLimit());
     }
 }
 
@@ -1862,12 +1781,12 @@ double dynamixelMotor::getGoalVelocity()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the goal velocity. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the goal velocity. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         double velocity = static_cast<double>(*data)*conversion_to_revmin;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current goal velocity is: %.1f rpm",this->ID, velocity);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current goal velocity is: %.1f rpm", this->ID, velocity);
         return velocity;
     }
 
@@ -1885,14 +1804,14 @@ void dynamixelMotor::setGoalVelocity(double GOAL_VELOCITY)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the goal velocity. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the goal velocity. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Goal velocity is set to: %.1f rpm", this->ID, GOAL_VELOCITY);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Goal velocity is set to: %.1f rpm", this->ID, GOAL_VELOCITY);
         }
     } else 
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid goal velocity (Must be lower than velocity limit of: %.1f rpm).",this->ID, this->getVelLimit());
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid goal velocity (Must be lower than velocity limit of: %.1f rpm).", this->ID, this->getVelLimit());
     }
 }
 
@@ -1905,11 +1824,11 @@ double dynamixelMotor::getProfileAcceleration()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the profile acceleration. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the profile acceleration. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current profile acceleration is: %.0f",this->ID, static_cast<double>(*data));
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current profile acceleration is: %.0f", this->ID, static_cast<double>(*data));
         return static_cast<double>(*data);
     }
 
@@ -1926,14 +1845,14 @@ void dynamixelMotor::setProfileAcceleration(double PROFILE_ACCELERATION)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the profile acceleration. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the profile acceleration. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Profile acceleration is set to: %.0f rpm", this->ID, PROFILE_ACCELERATION);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Profile acceleration is set to: %.0f rpm", this->ID, PROFILE_ACCELERATION);
         }
     } else 
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid profile acceleration (0 - 32.767).",this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid profile acceleration (0 - 32.767).", this->ID);
     }
 }
 
@@ -1946,11 +1865,11 @@ double dynamixelMotor::getProfileVelocity()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the profile velocity. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the profile velocity. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current profile velocity is: %.0f",this->ID, static_cast<double>(*data));
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current profile velocity is: %.0f", this->ID, static_cast<double>(*data));
         return static_cast<double>(*data);
     }
 
@@ -1967,14 +1886,14 @@ void dynamixelMotor::setProfileVelocity(double PROFILE_VELOCITY)
 
         if (dxl_comm_result != COMM_SUCCESS)    
         {
-            ROS_ERROR("DMXL %d: Failed to change the profile velocity. Error code: %d",this->ID, dxl_error);
+            RCLCPP_ERROR(logger, "DMXL %d: Failed to change the profile velocity. Error code: %d", this->ID, dxl_error);
         } else 
         {
-            ROS_INFO("\033[1;35mDMXL %d\033[0m: Profile velocity is set to: %.0f rpm", this->ID, PROFILE_VELOCITY);
+            RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Profile velocity is set to: %.0f rpm", this->ID, PROFILE_VELOCITY);
         }
     } else 
     {
-        ROS_ERROR("DMXL %d: Please, specify a valid profile velocity (0 - 32.767).",this->ID);
+        RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid profile velocity (0 - 32.767).", this->ID);
     }
 }
 
@@ -1988,12 +1907,12 @@ double dynamixelMotor::getGoalPosition()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the goal position. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the goal position. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         float degrees = static_cast<double>(*data) * conversion;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current goal position is: %.1f",this->ID, degrees);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current goal position is: %.1f", this->ID, degrees);
         return degrees;
     }
 
@@ -2012,14 +1931,14 @@ void dynamixelMotor::setGoalPosition(double GOAL_POSITION)
 
             if (dxl_comm_result != COMM_SUCCESS)    
             {
-                ROS_ERROR("DMXL %d: Failed to change the goal position. Error code: %d",this->ID, dxl_error);
+                RCLCPP_ERROR(logger, "DMXL %d: Failed to change the goal position. Error code: %d", this->ID, dxl_error);
             } else 
             {
-                ROS_INFO("\033[1;35mDMXL %d\033[0m: Goal position is set to: %.0f degrees", this->ID, GOAL_POSITION);
+                RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Goal position is set to: %.0f degrees", this->ID, GOAL_POSITION);
             }
         } else 
         {
-            ROS_ERROR("DMXL %d: Please, specify a valid goal position (0 - 360).",this->ID);
+            RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid goal position (0 - 360).", this->ID);
         }
 
     } else if(this->getOperatingMode() == "Extended Position Control")
@@ -2030,14 +1949,14 @@ void dynamixelMotor::setGoalPosition(double GOAL_POSITION)
 
             if (dxl_comm_result != COMM_SUCCESS)    
             {
-                ROS_ERROR("DMXL %d: Failed to change the goal position. Error code: %d",this->ID, dxl_error);
+                RCLCPP_ERROR(logger, "DMXL %d: Failed to change the goal position. Error code: %d", this->ID, dxl_error);
             } else 
             {
-                ROS_INFO("\033[1;35mDMXL %d\033[0m: Goal position is set to: %.0f revs", this->ID, GOAL_POSITION);
+                RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Goal position is set to: %.0f revs", this->ID, GOAL_POSITION);
             }
         } else 
         {
-            ROS_ERROR("DMXL %d: Please, specify a valid goal position (-255 - 255 revs).",this->ID);
+            RCLCPP_ERROR(logger, "DMXL %d: Please, specify a valid goal position (-255 - 255 revs).", this->ID);
         }
     }
 
@@ -2052,11 +1971,11 @@ double dynamixelMotor::getRealtimeTick()
     
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the realtime tick. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the realtime tick. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current realtime tick is: %.0f",this->ID, static_cast<double>(*data));
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current realtime tick is: %.0f", this->ID, static_cast<double>(*data));
         return static_cast<double>(*data);
     }
 
@@ -2072,13 +1991,13 @@ bool dynamixelMotor::isMoving()
     
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read if moving. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read if moving. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         bool is_moving = static_cast<int>(*data);
 
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Moving state is: %s",this->ID, is_moving ? "verdadero" : "falso");
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Moving state is: %s", this->ID, is_moving ? "verdadero" : "falso");
         return is_moving;
     }
 
@@ -2095,12 +2014,12 @@ int dynamixelMotor::getPresentPWM()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the present PWM. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the present PWM. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         float percent_PWM = static_cast<int>(*data)*conversion_to_percent;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current PWM is: %d (%.1f %%)",this->ID, static_cast<int>(*data),percent_PWM);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current PWM is: %d (%.1f %%)", this->ID, static_cast<int>(*data), percent_PWM);
         return percent_PWM;
     }
 
@@ -2117,12 +2036,12 @@ int dynamixelMotor::getPresentCurrent()
     
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the present current. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the present current. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         float current_mA = static_cast<int>(*data) * conversion_to_mA;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Present current is: %.1f mA",this->ID, current_mA);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Present current is: %.1f mA", this->ID, current_mA);
         return current_mA;
     }
 
@@ -2139,12 +2058,12 @@ double dynamixelMotor::getPresentVelocity()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the present velocity. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the present velocity. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         double velocity = static_cast<double>(*data)*conversion_to_revmin;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current velocity is: %.1f rpm",this->ID, velocity);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current velocity is: %.1f rpm", this->ID, velocity);
         return velocity;
     }
 
@@ -2161,12 +2080,12 @@ double dynamixelMotor::getPresentPosition()
     
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the present position. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the present position. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         float degrees = static_cast<double>(*data) * conversion;
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current position is: %.1f",this->ID, degrees);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current position is: %.1f", this->ID, degrees);
         return degrees;
     }
 
@@ -2182,11 +2101,11 @@ float dynamixelMotor::getPresentInputV()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the present input voltage. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the present input voltage. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current input voltage is: %.1f V ",this->ID, static_cast<float>(*data)/10);
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current input voltage is: %.1f V ", this->ID, static_cast<float>(*data)/10);
         return static_cast<int>(*data)*0.1;
     }
 
@@ -2202,11 +2121,11 @@ int dynamixelMotor::getPresentTemperature()
         
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read the present temperature. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read the present temperature. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Current temperature is: %d C",this->ID, static_cast<int>(*data));
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Current temperature is: %d C", this->ID, static_cast<int>(*data));
         return static_cast<int>(*data);
     }
 
@@ -2222,13 +2141,13 @@ bool dynamixelMotor::getBackupReady()
     
     if(dxl_comm_result != COMM_SUCCESS)
     {
-        ROS_ERROR("DMXL %d: Failed to read backup ready. Error code: %d", this->ID, dxl_error);
+        RCLCPP_ERROR(logger, "DMXL %d: Failed to read backup ready. Error code: %d", this->ID, dxl_error);
         return -1;
     } else 
     {
         bool backup_ready = static_cast<int>(*data);
 
-        ROS_INFO("\033[1;35mDMXL %d\033[0m: Backup ready is: %s",this->ID, backup_ready ? "verdadero" : "falso");
+        RCLCPP_INFO(logger, "\033[1;35mDMXL %d\033[0m: Backup ready is: %s", this->ID, backup_ready ? "verdadero" : "falso");
         return backup_ready;
     }
 

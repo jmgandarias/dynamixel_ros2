@@ -19,113 +19,123 @@
  *      rostopic pub -1 /pos_user_input std_msgs/Int32 "data: DEGREES"
 */
 
-#include <ros/ros.h>
-#include <std_msgs/Float32.h>
-#include <std_msgs/Int32.h>
+#include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/float32.hpp>
+#include <std_msgs/msg/int32.hpp>
 #include <dynamixel_ros2.h>
+#include <memory>
+#include <chrono>
+#include <cstdlib>
 #include <iostream>
 
+using namespace std::chrono_literals;
 
+static rclcpp::Logger logger = rclcpp::get_logger("dmxlParamsMonitor");
+
+// keep the same global motor object
 dynamixelMotor myMotor;
 
-void publishMotorStatus(ros::Publisher& pos_pub, ros::Publisher& vel_pub, ros::Publisher& curr_pub, ros::Publisher& temp_pub)
+// keep similar function signature (use rclcpp publisher shared_ptrs)
+void publishMotorStatus(
+  const rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr & pos_pub,
+  const rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr & vel_pub,
+  const rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr & curr_pub,
+  const rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr & temp_pub)
 {
-    // Creating MSG objects
-    std_msgs::Float32 pos_msg;
-    std_msgs::Float32 vel_msg;
-    std_msgs::Float32 curr_msg;
-    std_msgs::Float32 temp_msg;
+  std_msgs::msg::Float32 pos_msg;
+  std_msgs::msg::Float32 vel_msg;
+  std_msgs::msg::Float32 curr_msg;
+  std_msgs::msg::Float32 temp_msg;
 
-    // Getting params from dmxl
-    float position = (float)(myMotor.getPresentPosition());
-    float velocity = (float)(myMotor.getPresentVelocity());
-    float current = (float)(myMotor.getPresentCurrent());
-    float temperature = (float)(myMotor.getPresentTemperature());
+  pos_msg.data  = static_cast<float>(myMotor.getPresentPosition());
+  vel_msg.data  = static_cast<float>(myMotor.getPresentVelocity());
+  curr_msg.data = static_cast<float>(myMotor.getPresentCurrent());
+  temp_msg.data = static_cast<float>(myMotor.getPresentTemperature());
 
-    // data assignation
-    pos_msg.data = position;
-    vel_msg.data = velocity;
-    curr_msg.data = current;
-    temp_msg.data = temperature;
-
-    // Publishing
-    pos_pub.publish(pos_msg);
-    vel_pub.publish(vel_msg);
-    curr_pub.publish(curr_msg);
-    temp_pub.publish(temp_msg);
+  pos_pub->publish(pos_msg);
+  vel_pub->publish(vel_msg);
+  curr_pub->publish(curr_msg);
+  temp_pub->publish(temp_msg);
 }
 
 // Callback when some data was published in 'pos_user_input'
-void callBack(const std_msgs::Int32::ConstPtr& msg)
+void callBack(const std_msgs::msg::Int32::SharedPtr msg)
 {
-    int userValue = msg->data;
-    if (userValue >= 0 && userValue <= 360)
+  int userValue = msg->data;
+  if (userValue >= 0 && userValue <= 360)
+  {
+    if (myMotor.getTorqueState())
     {
-        if(myMotor.getTorqueState())
-        {
-            myMotor.setTorqueState(false);
-        }
-
-        if(myMotor.getOperatingMode() != "EXTENDED_POSITION_CONTROL_MODE")
-        {
-            myMotor.setOperatingMode(dynamixelMotor::EXTENDED_POSITION_CONTROL_MODE);
-        }
-
-        myMotor.setTorqueState(true);
-        myMotor.setGoalPosition(userValue);
+      myMotor.setTorqueState(false);
     }
-    else
+
+    if (myMotor.getOperatingMode() != "EXTENDED_POSITION_CONTROL_MODE")
     {
-        ROS_WARN("Invalid input: %d. Please enter a value between 0 and 360.", userValue);
+      myMotor.setOperatingMode(dynamixelMotor::EXTENDED_POSITION_CONTROL_MODE);
     }
+
+    myMotor.setTorqueState(true);
+    myMotor.setGoalPosition(userValue);
+    RCLCPP_INFO(logger, "Set goal position to %d", userValue);
+  }
+  else
+  {
+    RCLCPP_WARN(logger, "Invalid input: %d. Please enter a value between 0 and 360.", userValue);
+  }
 }
 
 int main(int argc, char *argv[])
 {
-    char* port_name;
-    int baud_rate, dmxl_id;
-    float protocol_version;
-
-    if (argc != 5)
-    {
-        printf("Please set '-port_name', '-protocol_version' '-baud_rate' '-dynamixel_id' arguments for connected Dynamixels\n");
-        return 0;
-    } else
-    {
-        port_name = argv[1];
-        protocol_version = atoi(argv[2]);
-        baud_rate = atoi(argv[3]);
-        dmxl_id = atoi(argv[4]);
-    }
-
-    myMotor = dynamixelMotor("M1",dmxl_id);
-    dynamixelMotor::iniComm(port_name,protocol_version,baud_rate);
-    
-    myMotor.setControlTable();
-
-    // ROS node init
-    ros::init(argc, argv, "dmxlParamsMonitor");
-    ros::NodeHandle nh;
-
-    // Publishers and Subscribers creation
-    ros::Publisher pos_publisher = nh.advertise<std_msgs::Float32>("motor_position",10);
-    ros::Publisher vel_publisher = nh.advertise<std_msgs::Float32>("motor_velocity",10);
-    ros::Publisher curr_publisher = nh.advertise<std_msgs::Float32>("motor_current",10);
-    ros::Publisher temp_publisher = nh.advertise<std_msgs::Float32>("motor_temperature",10);
-
-    ros::Subscriber user_input_subscriber = nh.subscribe("pos_user_input",10,callBack);
-
-    // ROS freq = 10 Hz
-    ros::Rate loop_rate(10);
-
-
-    while(ros::ok())
-    {
-        publishMotorStatus(pos_publisher, vel_publisher, curr_publisher, temp_publisher);
-
-        ros::spinOnce();
-        loop_rate.sleep();
-    }
-
+  if (argc != 5)
+  {
+    printf("Please set 'PORT_NAME PROTOCOL_VERSION BAUDRATE DMXL_ID' arguments for connected Dynamixels\n");
     return 0;
+  }
+
+  char * port_name = argv[1];
+  float protocol_version = static_cast<float>(std::atof(argv[2]));
+  int baud_rate = std::atoi(argv[3]);
+  int dmxl_id = std::atoi(argv[4]);
+
+  // initialize motor object
+  myMotor = dynamixelMotor("M1", dmxl_id);
+
+  if (!dynamixelMotor::iniComm(port_name, protocol_version, baud_rate))
+  {
+    fprintf(stderr, "Failed to initialize communication on port %s\n", port_name);
+    return 1;
+  }
+
+  myMotor.setControlTable();
+
+  // rclcpp init and node creation
+  rclcpp::init(argc, argv);
+  auto node = rclcpp::Node::make_shared("dmxlParamsMonitor");
+
+  // publishers and subscriber (keep topic names as before)
+  auto pos_publisher  = node->create_publisher<std_msgs::msg::Float32>("motor_position", 10);
+  auto vel_publisher  = node->create_publisher<std_msgs::msg::Float32>("motor_velocity", 10);
+  auto curr_publisher = node->create_publisher<std_msgs::msg::Float32>("motor_current", 10);
+  auto temp_publisher = node->create_publisher<std_msgs::msg::Float32>("motor_temperature", 10);
+
+  auto user_input_subscriber = node->create_subscription<std_msgs::msg::Int32>(
+    "pos_user_input", 10, [](const std_msgs::msg::Int32::SharedPtr msg){ callBack(msg); });
+
+  // loop at 10 Hz similar to ros::Rate loop
+  rclcpp::Rate loop_rate(10);
+
+  RCLCPP_INFO(logger, "dmxlParamsMonitor started for ID %d", dmxl_id);
+
+  while (rclcpp::ok())
+  {
+    publishMotorStatus(pos_publisher, vel_publisher, curr_publisher, temp_publisher);
+
+    // process incoming messages
+    rclcpp::spin_some(node);
+
+    loop_rate.sleep();
+  }
+
+  rclcpp::shutdown();
+  return 0;
 }

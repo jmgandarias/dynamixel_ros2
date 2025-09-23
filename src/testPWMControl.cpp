@@ -16,17 +16,18 @@
  *      rostopic pub -1 /user_pwm_input std_msgs/Int32 "data: PERCENTAGE"
 */
 
-#include "ros/ros.h"
-#include "std_msgs/Int32.h" 
+#include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/int32.hpp>
 #include <dynamixel_ros2.h>
+#include <cstdlib> // atoi/atof
 
 dynamixelMotor myDynamixel;
 
-void userInputCallback(const std_msgs::Int32::ConstPtr& msg)
+void userInputCallback(const std_msgs::msg::Int32::SharedPtr msg)
 {
     int userValue = msg->data;
 
-    if(userValue >= 0 and userValue <=100)
+    if(userValue >= 0 && userValue <= 100)
     {
         if(myDynamixel.getOperatingMode() != "PWM Control")
         {
@@ -43,7 +44,7 @@ void userInputCallback(const std_msgs::Int32::ConstPtr& msg)
 
     } else
     {
-        ROS_ERROR("INVALID PWM VALUE. Please, specify a value between 0 and 100%%");
+        RCLCPP_ERROR(rclcpp::get_logger("testPWMControl"), "INVALID PWM VALUE. Please, specify a value between 0 and 100%%");
     }
 }
 
@@ -60,21 +61,22 @@ int main(int argc, char **argv)
     } else
     {
         port_name = argv[1];
-        protocol_version = atoi(argv[2]);
-        baud_rate = atoi(argv[3]);
-        dmxl_id = atoi(argv[4]);
+        protocol_version = static_cast<float>(std::atof(argv[2]));
+        baud_rate = std::atoi(argv[3]);
+        dmxl_id = std::atoi(argv[4]);
     }
 
     myDynamixel = dynamixelMotor("example",dmxl_id);
     dynamixelMotor::iniComm(port_name,protocol_version,baud_rate);    
     myDynamixel.setControlTable();
 
+    rclcpp::init(argc, argv);
+    auto node = rclcpp::Node::make_shared("goal_pwm_reader");
+    auto sub = node->create_subscription<std_msgs::msg::Int32>(
+      "user_pwm_input", 10, userInputCallback);
 
-    ros::init(argc, argv, "goal_pwm_reader");
-    ros::NodeHandle nh;
-    ros::Subscriber sub = nh.subscribe("user_pwm_input", 10, userInputCallback);
-
-    ros::spin();
+    rclcpp::spin(node);
+    rclcpp::shutdown();
 
     return 0;
 }
