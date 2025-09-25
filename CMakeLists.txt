@@ -10,116 +10,61 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
-# try to find dynamixel_sdk (robust: prefer Config package, fallback to headers/libs)
 find_package(dynamixel_sdk REQUIRED)
 
-# <-- Add this so targets can include headers from the package's include/ while building
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
-
-# instalar headers para que otros paquetes los encuentren
+# Install and export headers
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/include")
-  install(DIRECTORY include/
-    DESTINATION include
-  )
+  install(DIRECTORY include/ DESTINATION include)
   ament_export_include_directories(include)
 endif()
 
-# Si tienes ejecutables que usan dynamixel_sdk, enlázalos también
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/testCommunication.cpp")
-  add_executable(testCommunication src/testCommunication.cpp)
-  ament_target_dependencies(testCommunication rclcpp)
-  # link against dynamixel_sdk if the find_package provides a target or variables
-  if(TARGET dynamixel_sdk::dynamixel_sdk)
-    target_link_libraries(testCommunication dynamixel_sdk::dynamixel_sdk)
-  else()
-    if(DEFINED dynamixel_sdk_LIBRARIES)
-      target_link_libraries(testCommunication ${dynamixel_sdk_LIBRARIES})
-    endif()
-    if(DEFINED dynamixel_sdk_INCLUDE_DIRS)
-      target_include_directories(testCommunication PRIVATE ${dynamixel_sdk_INCLUDE_DIRS})
-    endif()
-  endif()
-endif()
-
-# Build a library from the implementation so executables can link to it
-# (dynamixel_ros2.cpp contains the dynamixelMotor implementation)
+# Library implementing the wrapper
 add_library(dynamixel_ros2_lib SHARED src/dynamixel_ros2.cpp)
 target_include_directories(dynamixel_ros2_lib PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
 ament_target_dependencies(dynamixel_ros2_lib rclcpp std_msgs)
+
+# Link Dynamixel SDK to the library (propagates to executables that link the library)
 if(TARGET dynamixel_sdk::dynamixel_sdk)
   target_link_libraries(dynamixel_ros2_lib dynamixel_sdk::dynamixel_sdk)
+elseif(DEFINED dynamixel_sdk_LIBRARIES)
+  target_link_libraries(dynamixel_ros2_lib ${dynamixel_sdk_LIBRARIES})
 endif()
 
-# Executables (convert your old nodes)
-add_executable(blinkingLED src/blinkingLED.cpp)
-ament_target_dependencies(blinkingLED rclcpp std_msgs)
-# link to local library implementing dynamixelMotor
-target_link_libraries(blinkingLED dynamixel_ros2_lib)
-
-add_executable(testPositionControl src/testPositionControl.cpp)
-ament_target_dependencies(testPositionControl rclcpp std_msgs)
-target_link_libraries(testPositionControl dynamixel_ros2_lib)
-
-add_executable(testPWMControl src/testPWMControl.cpp)
-ament_target_dependencies(testPWMControl rclcpp std_msgs)
-target_link_libraries(testPWMControl dynamixel_ros2_lib)
-
-add_executable(dmxlParamsMonitor src/dmxlParamsMonitor.cpp)
-ament_target_dependencies(dmxlParamsMonitor rclcpp std_msgs)
-target_link_libraries(dmxlParamsMonitor dynamixel_ros2_lib)
-
-add_executable(pinzaTest src/realTest.cpp)
-ament_target_dependencies(pinzaTest rclcpp std_msgs)
-target_link_libraries(pinzaTest dynamixel_ros2_lib)
-
-# if testCommunication exists, link it too (it may be created earlier)
-if(TARGET testCommunication)
-  target_link_libraries(testCommunication dynamixel_ros2_lib)
-endif()
-
-# link the SDK to executables (keep this after library/executables are defined)
-if(TARGET dynamixel_sdk::dynamixel_sdk)
-  target_link_libraries(blinkingLED dynamixel_sdk::dynamixel_sdk)
-  target_link_libraries(testPositionControl dynamixel_sdk::dynamixel_sdk)
-  target_link_libraries(testPWMControl dynamixel_sdk::dynamixel_sdk)
-  target_link_libraries(dmxlParamsMonitor dynamixel_sdk::dynamixel_sdk)
-  target_link_libraries(pinzaTest dynamixel_sdk::dynamixel_sdk)
-  if(TARGET testCommunication)
-    target_link_libraries(testCommunication dynamixel_sdk::dynamixel_sdk)
+# Helper macro to add optional executables if their source files exist
+macro(add_optional_executable name src)
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${src}")
+    add_executable(${name} ${src})
+    ament_target_dependencies(${name} rclcpp std_msgs)
+    target_link_libraries(${name} dynamixel_ros2_lib)
+    install(TARGETS ${name} RUNTIME DESTINATION lib/${PROJECT_NAME})
   endif()
-endif()
+endmacro()
 
-# Install the library and export target
+# Optional example/test executables
+add_optional_executable(testCommunication src/testCommunication.cpp)
+add_optional_executable(blinkingLED src/blinkingLED.cpp)
+add_optional_executable(testPositionControl src/testPositionControl.cpp)
+add_optional_executable(testPWMControl src/testPWMControl.cpp)
+add_optional_executable(dmxlParamsMonitor src/dmxlParamsMonitor.cpp)
+add_optional_executable(pinzaTest src/realTest.cpp)
+
+# Install library and export targets (install into prefix/lib so -ldynamixel_ros2_lib finds it)
 install(TARGETS dynamixel_ros2_lib
   EXPORT export_${PROJECT_NAME}
-  ARCHIVE DESTINATION lib/${PROJECT_NAME}
-  LIBRARY DESTINATION lib/${PROJECT_NAME}
-  RUNTIME DESTINATION lib/${PROJECT_NAME}
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION lib
 )
 
-# Install targets
-install(TARGETS
-  testCommunication
-  blinkingLED
-  testPositionControl
-  testPWMControl
-  dmxlParamsMonitor
-  pinzaTest
-  ARCHIVE DESTINATION lib/${PROJECT_NAME}
-  LIBRARY DESTINATION lib/${PROJECT_NAME}
-  RUNTIME DESTINATION lib/${PROJECT_NAME}
-)
+# make the library visible to dependents that use ament's plain linking
+ament_export_libraries(dynamixel_ros2_lib)
 
-# Install message files so they are picked up by rosidl (if you added .msg files)
+# Install msg directory if present
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/msg")
-  install(DIRECTORY msg
-    DESTINATION share/${PROJECT_NAME}
-  )
-else()
-  message(STATUS "No msg/ directory found — skipping install(DIRECTORY msg ...)")
+  install(DIRECTORY msg DESTINATION share/${PROJECT_NAME})
 endif()
 
 ament_package()
